@@ -1,0 +1,44 @@
+name: Publish NOTA
+on:
+  push:
+    paths:
+      - '.github/workflows/nota-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: nota-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download the public NOTA app snapshot
+        shell: bash
+        run: |
+          mkdir -p nota/icons
+          for path in index.html app.js scanner.js security-data.js security.js install.js sw.js style.css favicon.svg manifest.webmanifest banknotes.csv data.js icons/icon-192.png icons/icon-512.png; do
+            curl --fail --location --compressed --retry 2 --max-time 90 "https://bead-seeder-1fgnv.ship.place/$path" --output "nota/$path"
+          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('nota/manifest.webmanifest')
+          m = json.loads(p.read_text())
+          m['id'] = './'
+          p.write_text(json.dumps(m, ensure_ascii=False, indent=2))
+          PY
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload the static app
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: nota
+      - name: Publish
+        id: deployment
+        uses: actions/deploy-pages@v4
